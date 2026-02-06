@@ -75,10 +75,21 @@ void TaskUDP(void *pvParameters)
   while (1)
   {
     int p = udp.parsePacket();
+
     // Save sender info
     senderIP = udp.remoteIP();
     senderPort = udp.remotePort();
     senderKnown = true;
+
+    if (senderKnown) {
+
+      udp.beginPacket(senderIP, senderPort);
+      udp.write((uint8_t*)pkt.cmd, sizeof(pkt.cmd));
+      udp.endPacket();
+
+     // Serial.println("CMD sent back");
+    }
+
     if (p == sizeof(pkt))
     {
       // read data
@@ -121,7 +132,7 @@ void TaskDetection(void *pvParameters)
     if (radar.isConnected() && millis() - lastReading > 1000)
     {
       lastReading = millis();
-      //GPIO Presence
+      // GPIO Presence
       bool presenceGPIO = digitalRead(LD2410_OUT_PIN);
 
       if (presenceGPIO)
@@ -129,7 +140,7 @@ void TaskDetection(void *pvParameters)
       else
         Serial.print(F("GPIO Presence: NO  | "));
 
-      //ส่วนเดิม ไม่เปลี่ยน
+      // ส่วนเดิม ไม่เปลี่ยน
       if (radar.presenceDetected())
       {
         if (radar.stationaryTargetDetected())
@@ -183,7 +194,7 @@ void setup()
 
   // setup resistance value form MCP41HVX1 0 - 255
   //! DANGER don't set gain over 100 tab
-  Digipot.WiperSetPosition(32);
+  Digipot.WiperSetPosition(40);
 
   // setup sensor
   if (radar.begin(RADAR))
@@ -207,11 +218,18 @@ void setup()
       "UDP",   // task name
       4096,    // stack size wifi/BLE/MQTT 4096-8192
       NULL,    // Parameters
-      1,       // priority 3 > 2 > 1 > 0
+      0,       // priority 3 > 2 > 1 > 0
       NULL,    // Task handle for suspent/resume or delete task
       0        // core 0
   );
-
+  xTaskCreatePinnedToCore(
+      TaskDetection,
+      "Detection",
+      4096,
+      NULL,
+      1,
+      NULL,
+      1);
   // Build TaskI2S
   xTaskCreatePinnedToCore(
       TaskI2S,
@@ -221,16 +239,6 @@ void setup()
       2,
       NULL,
       1);
-
-  xTaskCreatePinnedToCore(
-      TaskDetection,
-      "Detection",
-      4096,
-      NULL,
-      0,
-      NULL,
-      1
-  );
 
   taskYIELD();
 
